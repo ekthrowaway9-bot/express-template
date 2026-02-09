@@ -1,0 +1,1316 @@
+openapi: 3.0.0
+
+info:
+  title: Express Template API
+  description: >
+    Complete REST API specification for the Express Template application.
+    Includes authentication, category management, FIDO2 authentication,
+    and various utility endpoints.
+  version: 0.1.0
+  contact:
+    name: ES-Labs Development Team
+    email: eslabs.com@gmail.com
+    url: https://es-labs.org
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://es-labs.org/terms
+
+servers:
+  - url: http://127.0.0.1:3000/api
+    description: Local development server
+    variables:
+      port:
+        default: '3000'
+  - url: https://api.example.com/api
+    description: Production server
+    variables:
+      environment:
+        default: production
+  - url: https://api.staging.example.com/api
+    description: Staging server
+    variables:
+      environment:
+        default: staging
+
+tags:
+  - name: Health Check
+    description: API health and status endpoints
+  - name: Authentication
+    description: User authentication and authorization endpoints
+  - name: Categories
+    description: Category management endpoints
+  - name: FIDO2
+    description: WebAuthn/FIDO2 authentication endpoints
+  - name: Server-Sent Events
+    description: Real-time event streaming endpoints
+  - name: Web Push
+    description: Web Push Notification endpoints
+  - name: Webhooks
+    description: Webhook receiver endpoints
+  - name: Testing
+    description: Testing and debugging endpoints
+
+paths:
+  /healthcheck:
+    get:
+      operationId: getHealthcheck
+      tags:
+        - Health Check
+      summary: Get API health status
+      description: Returns the current health status of the API
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: postHealthcheck
+      tags:
+        - Health Check
+      summary: POST health check
+      description: Verify API health via POST request
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: POST OK
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health-auth:
+    get:
+      operationId: getHealthAuth
+      tags:
+        - Health Check
+      summary: Get authenticated health status
+      description: Returns health status for authenticated users
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Authenticated health check successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: OK
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      operationId: postLogin
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user with email and password. Returns tokens if successful, or OTP requirement indicator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/otp:
+    post:
+      operationId: postOTP
+      tags:
+        - Authentication
+      summary: Submit OTP verification
+      description: Complete authentication using one-time password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPRequest'
+      responses:
+        '200':
+          description: OTP verification successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      operationId: postRefresh
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Use refresh token to obtain a new access token
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    get:
+      operationId: getLogout
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate user session and tokens
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logout successful
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify:
+    get:
+      operationId: getVerify
+      tags:
+        - Authentication
+      summary: Verify authentication token
+      description: Verify that the provided token is valid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags:
+        - Authentication
+      summary: Get current user profile
+      description: Retrieve profile information for the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/signup:
+    post:
+      operationId: postSignup
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Create a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: User account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    format: int64
+                    description: Newly created user ID
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/categories:
+    get:
+      operationId: getCategories
+      tags:
+        - Categories
+      summary: List all categories
+      description: Retrieve a paginated list of all categories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based index)
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 2
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: createCategory
+      tags:
+        - Categories
+      summary: Create new category
+      description: Create a new category in the system
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCategory'
+      responses:
+        '201':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    format: int64
+                    description: ID of the created category
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/categories/{id}:
+    get:
+      operationId: getCategoryById
+      tags:
+        - Categories
+      summary: Get category by ID
+      description: Retrieve a specific category by its ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Category ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Category retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid category ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      operationId: updateCategory
+      tags:
+        - Categories
+      summary: Update category
+      description: Update an existing category
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Category ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCategory'
+      responses:
+        '200':
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Number of records updated
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteCategory
+      tags:
+        - Categories
+      summary: Delete category
+      description: Delete a category by its ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Category ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Number of records deleted
+        '400':
+          description: Invalid category ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/fido/register:
+    get:
+      operationId: getFidoRegister
+      tags:
+        - FIDO2
+      summary: Get FIDO2 registration options
+      description: Get attestation options for WebAuthn registration
+      responses:
+        '200':
+          description: Registration options retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FidoAttestationOptions'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: postFidoRegister
+      tags:
+        - FIDO2
+      summary: Submit FIDO2 registration response
+      description: Complete WebAuthn registration with attestation response
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FidoAttestationResponse'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  result:
+                    type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/sse/register:
+    get:
+      operationId: getSseRegister
+      tags:
+        - Server-Sent Events
+      summary: Register for SSE events
+      description: Establish Server-Sent Events connection for real-time updates
+      responses:
+        '200':
+          description: SSE connection established
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /app-sample/sse/event:
+    post:
+      operationId: postSseEvent
+      tags:
+        - Server-Sent Events
+      summary: Broadcast SSE event
+      description: Send an event to all connected SSE clients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SseEvent'
+      responses:
+        '200':
+          description: Event broadcasted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SseEvent'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/sse/status:
+    get:
+      operationId: getSseStatus
+      tags:
+        - Server-Sent Events
+      summary: Get SSE client status
+      description: Get the number of connected SSE clients
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clients:
+                    type: integer
+                    description: Number of connected clients
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/webpush/vapid-public-key:
+    get:
+      operationId: getVapidPublicKey
+      tags:
+        - Web Push
+      summary: Get VAPID public key
+      description: Retrieve the VAPID public key for web push subscription
+      responses:
+        '200':
+          description: VAPID public key retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicKey:
+                    type: string
+                    description: VAPID public key
+
+  /app-sample/webpush/sub:
+    post:
+      operationId: postWebpushSubscribe
+      tags:
+        - Web Push
+      summary: Subscribe to web push notifications
+      description: Subscribe the user to web push notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebpushSubscription'
+      responses:
+        '200':
+          description: Subscription successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: sub
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/webpush/unsub:
+    post:
+      operationId: postWebpushUnsubscribe
+      tags:
+        - Web Push
+      summary: Unsubscribe from web push notifications
+      description: Unsubscribe the user from web push notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Unsubscription successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unsub
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/webpush/send/{userId}:
+    post:
+      operationId: postWebpushSend
+      tags:
+        - Web Push
+      summary: Send web push notification
+      description: Send a web push notification to a specific user
+      parameters:
+        - name: userId
+          in: path
+          description: User ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebpushMessage'
+      responses:
+        '200':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: sent
+                  mode:
+                    type: string
+                    enum: [FCM, Webpush]
+                  rv:
+                    type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/webhooks/nexmo-mo-sms:
+    post:
+      operationId: postNexmoWebhook
+      tags:
+        - Webhooks
+      summary: Handle Nexmo MO SMS webhook
+      description: Receive inbound SMS messages from Nexmo service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NexmoSmsWebhook'
+      responses:
+        '200':
+          description: Webhook received successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body:
+                    type: object
+                  query:
+                    type: object
+                  params:
+                    type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/tests/stream:
+    get:
+      operationId: getTestStream
+      tags:
+        - Testing
+      summary: Test streaming endpoint
+      description: Test endpoint that streams data in chunks
+      responses:
+        '200':
+          description: Stream started successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /app-sample/tests/get-html:
+    get:
+      operationId: getTestHtml
+      tags:
+        - Testing
+      summary: Test HTML rendering
+      description: Test endpoint that returns rendered HTML
+      responses:
+        '200':
+          description: HTML rendered successfully
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer token for authentication
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: API Key authentication header
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic authentication
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: Error code
+          example: 400
+        message:
+          type: string
+          description: Error message
+          example: Bad request
+        error:
+          type: string
+          description: Detailed error information
+          example: Invalid parameter format
+
+    HealthCheckResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Health status message
+          example: OK
+        app:
+          type: string
+          description: Application name
+          example: express-template
+        environment:
+          type: string
+          description: Current environment
+          enum: [development, staging, production]
+          example: development
+        version:
+          type: string
+          description: Application version
+          example: 0.1.0
+        port:
+          type: integer
+          format: int32
+          description: API port
+          example: 3000
+        https:
+          type: boolean
+          description: HTTPS enabled
+          example: false
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          description: User password
+          example: SecurePassword123!
+
+    OTPRequest:
+      type: object
+      required:
+        - id
+        - pin
+      properties:
+        id:
+          type: string
+          description: User or session ID
+          example: 123456
+        pin:
+          type: string
+          description: One-time password (OTP)
+          example: 111111
+
+    AuthResponse:
+      type: object
+      properties:
+        otp:
+          type: integer
+          description: OTP requirement flag (1 = required)
+          example: 1
+        access_token:
+          type: string
+          description: JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ._l3MQQAq4Py1q9eWoaLomaX8wvSkYNiztEK_OZ1qlFA
+        refresh_token:
+          type: string
+          description: JWT refresh token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ
+
+    SignupRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: newuser@example.com
+        password:
+          type: string
+          format: password
+          description: User password
+          example: SecurePassword123!
+        fullName:
+          type: string
+          description: User full name
+          example: John Doe
+
+    UserProfile:
+      type: object
+      required:
+        - user
+        - ts
+      properties:
+        user:
+          type: integer
+          format: int64
+          description: User ID
+          example: 1
+        ts:
+          type: integer
+          format: int64
+          description: Timestamp
+          example: 1675123456789
+
+    Category:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique category identifier
+          example: 1
+        name:
+          type: string
+          description: Category name
+          example: Electronics
+
+    NewCategory:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Category name
+          example: Electronics
+
+    SseEvent:
+      type: object
+      properties:
+        hello:
+          type: string
+          example: world
+        eventType:
+          type: string
+          example: update
+        data:
+          type: object
+          description: Event data payload
+
+    FidoAttestationOptions:
+      type: object
+      properties:
+        challenge:
+          type: string
+          description: Challenge string for registration
+          example: 33EHav-jZ1v9qwH783aU-j0ARx6r5o-YHh-wd7C6jPbd7Wh6ytbIZosIIACehwf9-s6hXhySHO-HHUjEwZS29w
+        timeout:
+          type: integer
+          format: int32
+          description: Timeout in milliseconds
+          example: 120000
+        rpId:
+          type: string
+          description: Relying Party ID
+          example: localhost
+        rpName:
+          type: string
+          description: Relying Party name
+          example: ACME
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              description: User ID in base64url
+              example: bXl1c2Vy
+            name:
+              type: string
+              description: User name
+              example: name-myuser
+            displayName:
+              type: string
+              description: Display name
+              example: displayName-myuser
+
+    FidoAttestationResponse:
+      type: object
+      properties:
+        rawId:
+          type: string
+          description: Attestation credential ID in base64url
+        response:
+          type: object
+          properties:
+            clientDataJSON:
+              type: string
+              description: Client data JSON in base64url
+            attestationObject:
+              type: string
+              description: Attestation object in base64url
+
+    WebpushSubscription:
+      type: object
+      required:
+        - subscription
+      properties:
+        subscription:
+          type: string
+          description: Push subscription JSON serialized as string
+          example: '{"endpoint":"https://...","expirationTime":null,"keys":{"p256dh":"...","auth":"..."}}'
+
+    WebpushMessage:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum: [FCM, Webpush]
+          description: Push notification service
+          example: Webpush
+        data:
+          type: object
+          properties:
+            title:
+              type: string
+              description: Notification title
+              example: New Message
+            body:
+              type: string
+              description: Notification body
+              example: You have a new message
+
+    NexmoSmsWebhook:
+      type: object
+      properties:
+        msisdn:
+          type: string
+          description: Sender's phone number
+          example: 6588888888
+        to:
+          type: string
+          description: Recipient number
+          example: 6588888889
+        messageId:
+          type: string
+          description: Message ID
+          example: 170000028F5FBC1B
+        text:
+          type: string
+          description: SMS message text
+          example: Hello\nWorld
+        type:
+          type: string
+          description: Message type
+          example: text
+        keyword:
+          type: string
+          description: Keyword extracted from message
+          example: HELLO\nWORLD
+        api-key:
+          type: string
+          description: API key for verification
+          example: 88888888
+        message-timestamp:
+          type: string
+          format: date-time
+          description: Message timestamp
+          example: 2020-10-28T07:54:38Z
